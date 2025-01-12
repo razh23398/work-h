@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-    import Calendar from './Calendar';
+    import Calendar from 'react-calendar';
+    import 'react-calendar/dist/Calendar.css';
     import { format } from 'date-fns';
     import { db } from '../firebase';
     import { collection, doc, getDoc, setDoc } from 'firebase/firestore';
@@ -8,7 +9,8 @@ import React, { useState, useEffect } from 'react';
       const [selectedDate, setSelectedDate] = useState(null);
       const [isModalOpen, setIsModalOpen] = useState(false);
       const [shifts, setShifts] = useState({});
-      const [appliedShift, setAppliedShift] = useState(null);
+      const [appliedShifts, setAppliedShifts] = useState([]);
+      const [submittedDays, setSubmittedDays] = useState({});
 
       useEffect(() => {
         const fetchShifts = async () => {
@@ -30,17 +32,17 @@ import React, { useState, useEffect } from 'react';
             );
             const applicationSnap = await getDoc(applicationsRef);
             if (applicationSnap.exists()) {
-              setAppliedShift(applicationSnap.data().shift);
+              setAppliedShifts(applicationSnap.data().shift);
             } else {
-              setAppliedShift(null);
+              setAppliedShifts([]);
             }
           }
         };
         fetchShifts();
       }, [selectedDate, restaurantCode]);
 
-      const handleDateClick = (day) => {
-        setSelectedDate(day);
+      const handleDateClick = (date) => {
+        setSelectedDate(date);
         setIsModalOpen(true);
       };
 
@@ -48,26 +50,52 @@ import React, { useState, useEffect } from 'react';
         setIsModalOpen(false);
       };
 
-      const handleApplyShift = async (shift) => {
+      const handleApplyShift = async () => {
         if (selectedDate) {
           const applicationsRef = doc(
             collection(db(), `restaurants/${restaurantCode}/applications`),
             `${format(selectedDate, 'yyyy-MM-dd')}-employee`,
           );
-          await setDoc(applicationsRef, { shift });
-          setAppliedShift(shift);
+          await setDoc(applicationsRef, { shift: appliedShifts });
+          setSubmittedDays((prevDays) => ({
+            ...prevDays,
+            [format(selectedDate, 'yyyy-MM-dd')]: true,
+          }));
         }
         setIsModalOpen(false);
+      };
+
+      const handleShiftChange = (shift, isChecked) => {
+        if (isChecked) {
+          setAppliedShifts([...appliedShifts, shift]);
+        } else {
+          setAppliedShifts(appliedShifts.filter((s) => s !== shift));
+        }
+      };
+
+      const tileClassName = ({ date, view }) => {
+        if (view === 'month') {
+          const formattedDate = format(date, 'yyyy-MM-dd');
+          if (submittedDays[formattedDate]) {
+            return 'react-calendar__tile--active';
+          }
+          if (shifts[formattedDate]) {
+            return 'react-calendar__tile--hasActive';
+          }
+        }
+        return null;
       };
 
       return (
         <div>
           <h2>Employee Dashboard</h2>
-          <Calendar
-            onDateClick={handleDateClick}
-            selectedDate={selectedDate}
-            shifts={shifts}
-          />
+          <div className="calendar-container">
+            <Calendar
+              onClickDay={handleDateClick}
+              value={selectedDate}
+              tileClassName={tileClassName}
+            />
+          </div>
           {isModalOpen && (
             <div className="modal">
               <div className="modal-content">
@@ -84,11 +112,32 @@ import React, { useState, useEffect } from 'react';
                       Evening: {shifts[format(selectedDate, 'yyyy-MM-dd')].evening} employees
                     </p>
                     <div>
-                      <button onClick={() => handleApplyShift('morning')}>Apply Morning</button>
-                      <button onClick={() => handleApplyShift('afternoon')}>Apply Afternoon</button>
-                      <button onClick={() => handleApplyShift('evening')}>Apply Evening</button>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={appliedShifts.includes('morning')}
+                          onChange={(e) => handleShiftChange('morning', e.target.checked)}
+                        />
+                        Morning
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={appliedShifts.includes('afternoon')}
+                          onChange={(e) => handleShiftChange('afternoon', e.target.checked)}
+                        />
+                        Afternoon
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={appliedShifts.includes('evening')}
+                          onChange={(e) => handleShiftChange('evening', e.target.checked)}
+                        />
+                        Evening
+                      </label>
                     </div>
-                    {appliedShift && <p>You have applied for: {appliedShift} shift</p>}
+                    <button onClick={handleApplyShift}>Apply</button>
                   </div>
                 ) : (
                   <p>No shifts available for this day.</p>

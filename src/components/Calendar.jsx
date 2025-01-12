@@ -1,11 +1,24 @@
-import React, { useState } from 'react';
-    import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameDay } from 'date-fns';
+import React, { useState, useEffect } from 'react';
+    import {
+      startOfMonth,
+      endOfMonth,
+      eachDayOfInterval,
+      format,
+      isSameDay,
+      isBefore,
+      isToday,
+    } from 'date-fns';
 
-    function Calendar({ onDateClick, selectedDate, shifts }) {
+    function Calendar({ onDateClick, selectedDate, shifts, userType }) {
       const [currentMonth, setCurrentMonth] = useState(new Date());
       const firstDayOfMonth = startOfMonth(currentMonth);
       const lastDayOfMonth = endOfMonth(currentMonth);
       const days = eachDayOfInterval({ start: firstDayOfMonth, end: lastDayOfMonth });
+      const [today, setToday] = useState(new Date());
+
+      useEffect(() => {
+        setToday(new Date());
+      }, []);
 
       const handlePrevMonth = () => {
         setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
@@ -37,11 +50,16 @@ import React, { useState } from 'react';
                 }
                 const isSelected = selectedDate && isSameDay(day, selectedDate);
                 const hasShifts = shifts && shifts[format(day, 'yyyy-MM-dd')];
+                const isPast = isBefore(day, today);
+                const isTodayDate = isToday(day);
+                const isDisabled = userType === 'manager' && isPast;
                 rows[rows.length - 1].push(
                   <td
                     key={day}
-                    onClick={() => onDateClick(day)}
-                    className={isSelected ? 'selected' : hasShifts ? 'selected' : ''}
+                    onClick={() => !isDisabled && onDateClick(day)}
+                    className={`${isSelected ? 'selected' : hasShifts ? 'selected' : ''} ${
+                      isDisabled ? 'past' : ''
+                    }`}
                   >
                     <div style={{ padding: '5px' }}>{format(day, 'd')}</div>
                   </td>,

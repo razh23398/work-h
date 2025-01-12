@@ -10,6 +10,7 @@ import React, { useState, useEffect } from 'react';
       const [userType, setUserType] = useState(null);
       const [restaurantCode, setRestaurantCode] = useState(null);
       const [loginError, setLoginError] = useState(null);
+      const [rememberMe, setRememberMe] = useState(false);
       const navigate = useNavigate();
 
       useEffect(() => {
@@ -23,6 +24,15 @@ import React, { useState, useEffect } from 'react';
           }
         };
         checkInitialData();
+
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const { userType, restaurantCode } = JSON.parse(storedUser);
+          setUserType(userType);
+          setRestaurantCode(restaurantCode);
+          setLoggedIn(true);
+          navigate(`/${userType}`);
+        }
       }, []);
 
       const handleLogin = async (e) => {
@@ -48,10 +58,21 @@ import React, { useState, useEffect } from 'react';
           setRestaurantCode(restaurantCode);
           setLoggedIn(true);
           setLoginError(null);
+          if (rememberMe) {
+            localStorage.setItem('user', JSON.stringify({ userType, restaurantCode }));
+          }
           navigate(`/${userType}`);
         } else {
           setLoginError('Invalid credentials. Please try again.');
         }
+      };
+
+      const handleLogout = () => {
+        setLoggedIn(false);
+        setUserType(null);
+        setRestaurantCode(null);
+        localStorage.removeItem('user');
+        navigate('/');
       };
 
       if (!loggedIn) {
@@ -78,6 +99,14 @@ import React, { useState, useEffect } from 'react';
                 Restaurant Code:
                 <input type="text" name="restaurantCode" required />
               </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                Remember Me
+              </label>
               <button type="submit">Login</button>
               {loginError && <div className="error-message">{loginError}</div>}
             </form>
@@ -86,28 +115,35 @@ import React, { useState, useEffect } from 'react';
       }
 
       return (
-        <Routes>
-          <Route
-            path="/employee"
-            element={
-              userType === 'employee' ? (
-                <EmployeeDashboard restaurantCode={restaurantCode} />
-              ) : (
-                <div>Access Denied</div>
-              )
-            }
-          />
-          <Route
-            path="/manager"
-            element={
-              userType === 'manager' ? (
-                <ManagerDashboard restaurantCode={restaurantCode} />
-              ) : (
-                <div>Access Denied</div>
-              )
-            }
-          />
-        </Routes>
+        <div>
+          {userType && (
+            <button style={{ position: 'absolute', top: 10, right: 10 }} onClick={handleLogout}>
+              Logout
+            </button>
+          )}
+          <Routes>
+            <Route
+              path="/employee"
+              element={
+                userType === 'employee' ? (
+                  <EmployeeDashboard restaurantCode={restaurantCode} />
+                ) : (
+                  <div>Access Denied</div>
+                )
+              }
+            />
+            <Route
+              path="/manager"
+              element={
+                userType === 'manager' ? (
+                  <ManagerDashboard restaurantCode={restaurantCode} />
+                ) : (
+                  <div>Access Denied</div>
+                )
+              }
+            />
+          </Routes>
+        </div>
       );
     }
 

@@ -1,8 +1,16 @@
 import React, { useState, useEffect } from 'react';
-    import Calendar from './Calendar';
-    import { format } from 'date-fns';
+    import Calendar from 'react-calendar';
+    import 'react-calendar/dist/Calendar.css';
+    import { format, isBefore, isToday } from 'date-fns';
     import { db } from '../firebase';
-    import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
+    import {
+      collection,
+      doc,
+      setDoc,
+      getDoc,
+      onSnapshot,
+      deleteDoc,
+    } from 'firebase/firestore';
 
     function ManagerDashboard({ restaurantCode }) {
       const [selectedDate, setSelectedDate] = useState(null);
@@ -11,6 +19,7 @@ import React, { useState, useEffect } from 'react';
       const [morningShift, setMorningShift] = useState('');
       const [afternoonShift, setAfternoonShift] = useState('');
       const [eveningShift, setEveningShift] = useState('');
+      const [notifications, setNotifications] = useState([]);
 
       useEffect(() => {
         const fetchShifts = async () => {
@@ -36,11 +45,26 @@ import React, { useState, useEffect } from 'react';
           }
         };
         fetchShifts();
+
+        const unsubscribe = onSnapshot(
+          collection(db(), `restaurants/${restaurantCode}/applications`),
+          (snapshot) => {
+            const newNotifications = snapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+            setNotifications(newNotifications);
+          },
+        );
+
+        return () => unsubscribe();
       }, [selectedDate, restaurantCode]);
 
-      const handleDateClick = (day) => {
-        setSelectedDate(day);
-        setIsModalOpen(true);
+      const handleDateClick = (date) => {
+        if (!isBefore(date, new Date()) && !isToday(date)) {
+          setSelectedDate(date);
+          setIsModalOpen(true);
+        }
       };
 
       const handleCloseModal = () => {
@@ -70,14 +94,37 @@ import React, { useState, useEffect } from 'react';
         setIsModalOpen(false);
       };
 
+      const handleConfirmApplication = async (id) => {
+        await deleteDoc(doc(collection(db(), `restaurants/${restaurantCode}/applications`), id));
+      };
+
+      const handleDeleteApplication = async (id) => {
+        await deleteDoc(doc(collection(db(), `restaurants/${restaurantCode}/applications`), id));
+      };
+
+      const tileClassName = ({ date, view }) => {
+        if (view === 'month') {
+          const formattedDate = format(date, 'yyyy-MM-dd');
+          if (shifts[formattedDate]) {
+            return 'react-calendar__tile--hasActive';
+          }
+          if (isBefore(date, new Date()) && !isToday(date)) {
+            return 'react-calendar__tile--disabled';
+          }
+        }
+        return null;
+      };
+
       return (
         <div>
           <h2>Manager Dashboard</h2>
-          <Calendar
-            onDateClick={handleDateClick}
-            selectedDate={selectedDate}
-            shifts={shifts}
-          />
+          <div className="calendar-container">
+            <Calendar
+              onClickDay={handleDateClick}
+              value={selectedDate}
+              tileClassName={tileClassName}
+            />
+          </div>
           {isModalOpen && (
             <div className="modal">
               <div className="modal-content">
@@ -124,6 +171,19 @@ import React, { useState, useEffect } from 'react';
               </div>
             </div>
           )}
+          {notifications.map((notification) => (
+            <div key={notification.id} className="notification-line">
+              <p>
+                Employee {notification.id.split('-')[1]} applied for shifts on{' '}
+                {notification.id.split('-')[0]}:{' '}
+                {Array.isArray(notification.shift)
+                  ? notification.shift.join(', ')
+                  : 'No shifts selected'}
+              </p>
+              <button onClick={() => handleConfirmApplication(notification.id)}>Confirm</button>
+              <button onClick={() => handleDeleteApplication(notification.id)}>Delete</button>
+            </div>
+          ))}
         </div>
       );
     }
